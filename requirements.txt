@@ -1,0 +1,11 @@
+jupyterlab
+numpy
+scipy
+matplotlib
+ipywidgets
+ipympl
+
+# Optional, later:
+# pyrtlsdr
+# folium
+# scikit-dsp-comm

@@ -1,0 +1,29 @@
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS/editor noise
+.DS_Store
+
+# Local recordings and captures stay out of git
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.ogg
+*.iq
+*.cu8
+*.cs8
+*.cfile
+*.sigmf-data
+assets/local/
+captures/
