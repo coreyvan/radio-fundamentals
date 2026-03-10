@@ -93,6 +93,31 @@ class RfUtilsTest(unittest.TestCase):
         loss = rf_utils.fspl_db(d_km=1.0, f_mhz=462.0)
         self.assertAlmostEqual(loss, 85.73, delta=0.05)
 
+    def test_complex_mix_down_shifts_tone_to_baseband(self):
+        fs = 48_000
+        t = np.arange(0, 0.05, 1 / fs)
+        iq = np.exp(1j * 2 * np.pi * 6_000 * t)
+        shifted = rf_utils.complex_mix_down(iq, fs=fs, freq_shift=6_000)
+        self.assertAlmostEqual(np.mean(np.abs(shifted - 1.0)), 0.0, delta=1e-2)
+
+    def test_fm_demodulate_iq_recovers_message_shape(self):
+        fs = 96_000
+        t = np.arange(0, 0.08, 1 / fs)
+        message = 0.7 * np.sin(2 * np.pi * 900 * t)
+        iq = rf_utils.synthesize_fm_iq(message, fs=fs, carrier_offset=12_000, freq_dev=2_500)
+        demod = rf_utils.fm_demodulate_iq(iq, fs=fs, audio_cutoff=3_000)
+        corr = self._aligned_correlation(message, demod)
+        self.assertGreater(corr, 0.9)
+
+    def test_load_complex_capture_reads_npz_sample_rate(self):
+        iq = np.array([1 + 1j, 2 - 1j, -0.5 + 0.25j], dtype=np.complex128)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "capture.npz"
+            np.savez(path, iq=iq, sample_rate=240_000)
+            fs, loaded = rf_utils.load_complex_capture(path)
+        self.assertEqual(fs, 240_000)
+        np.testing.assert_allclose(loaded, iq)
+
     def test_plot_helpers_return_axes(self):
         fs = 8_000
         _, tone = rf_utils.generate_tone(freq=500, duration=0.2, fs=fs)
@@ -104,15 +129,32 @@ class RfUtilsTest(unittest.TestCase):
         self.assertEqual(spectrogram_ax.get_title(), "Gram")
         self.assertIsNotNone(mesh)
 
-    def test_widget_helpers_fail_cleanly_without_ipywidgets(self):
-        with self.assertRaises(RuntimeError):
-            rf_utils.float_slider(
-                min_value=0.0,
-                max_value=1.0,
-                step=0.1,
-                value=0.5,
-                description="Test",
-            )
+    def test_widget_helpers_create_expected_controls(self):
+        slider = rf_utils.float_slider(
+            min_value=0.0,
+            max_value=1.0,
+            step=0.1,
+            value=0.5,
+            description="Test",
+        )
+        int_slider = rf_utils.int_slider(
+            min_value=1,
+            max_value=5,
+            step=1,
+            value=3,
+            description="Count",
+        )
+        dropdown = rf_utils.dropdown(
+            options=["hann", "hamming"],
+            value="hann",
+            description="Window",
+        )
+        output = rf_utils.audio_output_widget()
+
+        self.assertEqual(slider.description, "Test")
+        self.assertEqual(int_slider.value, 3)
+        self.assertEqual(dropdown.value, "hann")
+        self.assertEqual(output.__class__.__name__, "Output")
 
 
 if __name__ == "__main__":

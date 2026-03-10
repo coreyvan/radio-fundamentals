@@ -268,6 +268,137 @@ def fspl_db(d_km: float, f_mhz: float) -> float:
     return float(20 * np.log10(d_km) + 20 * np.log10(f_mhz) + 32.44)
 
 
+def load_complex_capture(
+    filepath: str | os.PathLike[str],
+    sample_rate: float | None = None,
+) -> tuple[float | None, np.ndarray]:
+    """Load a local IQ capture from .npy or .npz."""
+    path = Path(filepath)
+    if not path.exists():
+        raise FileNotFoundError(path)
+
+    if path.suffix.lower() == ".npy":
+        iq = np.load(path)
+        return sample_rate, np.asarray(iq, dtype=np.complex128)
+
+    if path.suffix.lower() == ".npz":
+        data = np.load(path)
+        if "iq" in data:
+            iq = data["iq"]
+        elif "samples" in data:
+            iq = data["samples"]
+        else:
+            raise ValueError("NPZ capture must contain 'iq' or 'samples'.")
+        fs = sample_rate
+        if fs is None and "sample_rate" in data:
+            fs = float(np.asarray(data["sample_rate"]).reshape(-1)[0])
+        return fs, np.asarray(iq, dtype=np.complex128)
+
+    raise ValueError("Unsupported capture format. Use .npy or .npz for IQ captures.")
+
+
+def complex_mix_down(iq: np.ndarray, fs: float, freq_shift: float) -> np.ndarray:
+    """Frequency-shift a complex IQ signal by mixing with a complex exponential."""
+    arr = np.asarray(iq, dtype=np.complex128)
+    t = np.arange(len(arr), dtype=np.float64) / fs
+    return arr * np.exp(-1j * 2 * np.pi * freq_shift * t)
+
+
+def lowpass_filter(
+    signal_data: np.ndarray,
+    cutoff_hz: float,
+    fs: float,
+    order: int = 5,
+) -> np.ndarray:
+    """Apply a Butterworth low-pass filter to real or complex data."""
+    arr = np.asarray(signal_data)
+    sos = butter(order, cutoff_hz, btype="low", fs=fs, output="sos")
+    if np.iscomplexobj(arr):
+        return sosfilt(sos, arr.real) + 1j * sosfilt(sos, arr.imag)
+    return sosfilt(sos, arr.astype(np.float64))
+
+
+def bandpass_filter(
+    signal_data: np.ndarray,
+    low_hz: float,
+    high_hz: float,
+    fs: float,
+    order: int = 5,
+) -> np.ndarray:
+    """Apply a Butterworth band-pass filter to real or complex data."""
+    arr = np.asarray(signal_data)
+    sos = butter(order, [low_hz, high_hz], btype="band", fs=fs, output="sos")
+    if np.iscomplexobj(arr):
+        return sosfilt(sos, arr.real) + 1j * sosfilt(sos, arr.imag)
+    return sosfilt(sos, arr.astype(np.float64))
+
+
+def fm_demodulate_iq(
+    iq_signal: np.ndarray,
+    fs: float,
+    audio_cutoff: float = 3500.0,
+) -> np.ndarray:
+    """FM demodulate a complex baseband IQ signal."""
+    iq = np.asarray(iq_signal, dtype=np.complex128)
+    if len(iq) < 2:
+        return np.asarray(iq.real, dtype=np.float64)
+    phase_step = np.angle(iq[1:] * np.conj(iq[:-1]))
+    demod = np.concatenate([phase_step, phase_step[-1:]]) * fs / (2 * np.pi)
+    demod = demod - np.mean(demod)
+    return normalize(lowpass_filter(demod, cutoff_hz=audio_cutoff, fs=fs))
+
+
+def am_demodulate_iq(
+    iq_signal: np.ndarray,
+    fs: float,
+    audio_cutoff: float = 3500.0,
+) -> np.ndarray:
+    """AM demodulate a complex baseband IQ signal via envelope detection."""
+    env = np.abs(np.asarray(iq_signal, dtype=np.complex128))
+    env = env - np.mean(env)
+    return normalize(lowpass_filter(env, cutoff_hz=audio_cutoff, fs=fs))
+
+
+def synthesize_fm_iq(
+    message: np.ndarray,
+    fs: float,
+    carrier_offset: float = 0.0,
+    freq_dev: float = 2500.0,
+) -> np.ndarray:
+    """Generate synthetic FM IQ samples around a complex carrier offset."""
+    msg = np.asarray(message, dtype=np.float64)
+    t = np.arange(len(msg), dtype=np.float64) / fs
+    phase = 2 * np.pi * carrier_offset * t + 2 * np.pi * freq_dev * np.cumsum(msg) / fs
+    return np.exp(1j * phase)
+
+
+def probe_rtlsdr() -> dict[str, object]:
+    """Check whether pyrtlsdr is installed and whether a device can be opened."""
+    try:
+        from rtlsdr import RtlSdr
+    except ImportError:
+        return {
+            "installed": False,
+            "available": False,
+            "message": "pyrtlsdr is not installed.",
+        }
+
+    try:
+        sdr = RtlSdr()
+        sdr.close()
+        return {
+            "installed": True,
+            "available": True,
+            "message": "RTL-SDR device detected.",
+        }
+    except Exception as exc:  # pragma: no cover - hardware dependent
+        return {
+            "installed": True,
+            "available": False,
+            "message": f"pyrtlsdr is installed, but no usable device was opened: {exc}",
+        }
+
+
 def _require_matplotlib_pyplot():
     import matplotlib.pyplot as plt
 
