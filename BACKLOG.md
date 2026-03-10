@@ -11,10 +11,10 @@
 
 ## Phase 2 - Shared DSP Foundation
 
-- [ ] Implement the first `rf_utils.py` pass from `PLAN.md`
-- [ ] Add reusable plotting helpers for waveform, spectrum, and spectrogram views
-- [ ] Add reusable audio/widget helpers used across notebooks
-- [ ] Verify utility behavior with short smoke tests or executable examples
+- [x] Implement the first `rf_utils.py` pass from `PLAN.md`
+- [x] Add reusable plotting helpers for waveform, spectrum, and spectrogram views
+- [x] Add reusable audio/widget helpers used across notebooks
+- [x] Verify utility behavior with short smoke tests or executable examples
 
 ## Phase 3 - Decompose Existing Notebook Content
 
