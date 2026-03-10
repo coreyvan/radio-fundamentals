@@ -47,7 +47,7 @@
 
 ## Phase 6 - Cleanup and Validation
 
-- [ ] Add Pi-oriented setup notes for JupyterLab, `ipympl`, `ffmpeg`, and optional SDR packages
+- [x] Add Pi-oriented setup notes for JupyterLab, `ipympl`, `ffmpeg`, and optional SDR packages
 - [ ] Smoke-test each notebook with restart-and-run-all discipline
-- [ ] Remove the legacy notebooks after their content has been fully decomposed
-- [ ] Review the repo for large-file hygiene before the first real commit series
+- [x] Remove the legacy notebooks after their content has been fully decomposed
+- [x] Review the repo for large-file hygiene before the first real commit series
